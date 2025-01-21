@@ -5,7 +5,8 @@
 
 // 構造体定義
 struct node{
-    int symbol;
+    int symbol;// 元の文字のASCIIコード
+    int huffman_symbol;// ハフマン符号0か1
     int count;
     Node *left;
     Node *right;
@@ -24,7 +25,7 @@ static void count_symbols(const char *filename);
 static void reset_count(void);
 
 // 与えられた引数でNode構造体を作成し、そのアドレスを返す関数
-static Node *create_node(int symbol, int count, Node *left, Node *right);
+static Node *create_node(int symbol, int huffman_symbol, int count, Node *left, Node *right);
 
 // Node構造体へのポインタが並んだ配列から、最小カウントを持つ構造体をポップしてくる関数
 // n は 配列の実効的な長さを格納する変数を指している（popするたびに更新される）
@@ -59,10 +60,10 @@ static void reset_count(void)
     for (int i = 0 ; i < NSYMBOLS ; i++) symbol_count[i] = 0;
 }
 
-static Node *create_node(int symbol, int count, Node *left, Node *right)
+static Node *create_node(int symbol, int huffman_symbol ,int count, Node *left, Node *right)
 {
     Node *ret = (Node *)malloc(sizeof(Node));
-    *ret = (Node){ .symbol = symbol, .count = count, .left = left, .right = right};
+    *ret = (Node){ .symbol = symbol, .huffman_symbol = huffman_symbol, .count = count, .left = left, .right = right};
     return ret;
 }
 
@@ -98,7 +99,7 @@ static Node *build_tree(void)
     for (int i = 0; i < NSYMBOLS; i++) {
         // カウントの存在しなかったシンボルには何もしない
         if (symbol_count[i] == 0) continue;
-        nodep[n++] = create_node(i, symbol_count[i], NULL, NULL);
+        nodep[n++] = create_node(i, -1, symbol_count[i], NULL, NULL);
     }
 
     const int dummy = -1; // ダミー用のsymbol を用意しておく
@@ -110,7 +111,7 @@ static Node *build_tree(void)
         // 選ばれた2つのノードを元に統合ノードを新規作成
         // 作成したノードはnodep にどうすればよいか?
 
-        Node *dnode = create_node(dummy, node1->count + node2->count, node1, node2);// 左右が反対なのはなぜ？
+        Node *dnode = create_node(dummy, -1, node1->count + node2->count, node1, node2);// 左右が反対なのはなぜ？
         nodep[n] = dnode;// 末尾に追加
         n++;// 配列の要素数をプラスする
     }
@@ -135,7 +136,13 @@ void traverse_tree(const int depth, const Node *np)
 {			  
     if (np == NULL) return;
 
-    printf("Depth: %d, Symbol: %c (%d), Count: %d\n", depth, (np->symbol >= 32 && np->symbol <= 126) ? np->symbol: '?', np->symbol, np->count);
+    printf("Depth: %d, Symbol: %c (%d), huffman_symbol: %d, Count: %d\n", depth, (np->symbol >= 32 && np->symbol <= 126) ? np->symbol: '?', np->symbol, np->huffman_symbol, np->count);
+    if (np->left) {
+        np->left->huffman_symbol = 0;
+    }
+    if (np->right) {
+        np->right->huffman_symbol = 1;
+    }
     traverse_tree(depth + 1, np->left);
     traverse_tree(depth + 1, np->right);
 }
