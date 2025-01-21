@@ -110,7 +110,7 @@ static Node *build_tree(void)
         // 選ばれた2つのノードを元に統合ノードを新規作成
         // 作成したノードはnodep にどうすればよいか?
 
-        Node *dnode = create_node(dummy, node1->count + node2->count, node2, node1);
+        Node *dnode = create_node(dummy, node1->count + node2->count, node1, node2);// 左右が反対なのはなぜ？
         nodep[n] = dnode;// 末尾に追加
         n++;// 配列の要素数をプラスする
     }
@@ -119,19 +119,27 @@ static Node *build_tree(void)
     return (n==0)?NULL:nodep[0];
 }
 
-
+/*
+行きがけ順 (preorder)
+親 -> 左の子 -> 右の子 の再帰
+通りがけ順 (inorder)
+左の子 -> 親 -> 右の子 の再帰
+帰りがけ順 (postorder)
+左の子 -> 右の子 -> 親 の再帰
+*/
 
 // Perform depth-first traversal of the tree
 // 深さ優先で木を走査する
 // 現状は何もしていない（再帰してたどっているだけ）
 void traverse_tree(const int depth, const Node *np)
 {			  
-    if (np == NULL || np->left == NULL) return;
-    printf("symbol = %d\n", np->symbol);
-    
+    if (np == NULL) return;
+
+    printf("Depth: %d, Symbol: %c (%d), Count: %d\n", depth, (np->symbol >= 32 && np->symbol <= 126) ? np->symbol: '?', np->symbol, np->count);
     traverse_tree(depth + 1, np->left);
     traverse_tree(depth + 1, np->right);
 }
+
 
 // この関数は外部 (main) で使用される (staticがついていない)
 Node *encode(const char *filename)
