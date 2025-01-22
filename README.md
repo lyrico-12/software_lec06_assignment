@@ -105,3 +105,44 @@ void traverse_tree(const Node* np, const int depth, const char *prefix, int is_l
 }
 ```
 上のように、インデント情報をprefixに保存しながら、再帰を用いて表示した。左のノードなのか、右のノードなのかが重要で、左のノードだったら、縦線"│"を保存するようにしている。
+
+## 課題２
+ハフマン符号化したのち、圧縮して出力するところまで実装した。
+### ハフマン符号化フォーマット
+出力ファイルのフォーマットは以下の通り。
+- 1byte ファイルの文字の種類数 (nとする)
+- (sizeof(unsigned char)分: 変換前の文字<br>sizeof(unsigned int)分: 変換後のビット列の長さ<br>sizeof(unsigned int)分: 変換後のコード語)<br> をn回繰り返す。
+- 1byteずつのハフマン符号化列
+
+### 実行方法
+コンパイルしたのち、
+```
+bin/huffman <input filename> <output filename>
+```
+とすると実行できる。出力ファイルの拡張子は.datを想定している。
+
+### 実装方法
+compression.cというファイルを新たに追加した。また、ビット単位の圧縮処理をするために、
+```c
+struct bitwriter {
+    unsigned char buffer;
+    int bit_count;
+};
+```
+このような構造体を追加した。compression.c内の
+```c
+// ビットを書き込む
+static void write_bit(BitWriter *bw, int bit, FILE* fp);
+
+// ビット列を書き込む
+static void write_bits(BitWriter* bw, unsigned int bits, int length, FILE* fp);
+
+// バッファに残ったビットを出力
+static void flush(BitWriter* bw, FILE* fp);
+```
+この関数内で可変長のビット列をファイルに書き込むための処理を書いている。最終的な圧縮処理は、
+```c
+// 出力ファイルに圧縮
+void compress(const char* inputfile, const char* outputfile);
+```
+この関数で実装した。
