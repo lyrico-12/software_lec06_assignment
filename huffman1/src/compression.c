@@ -6,34 +6,70 @@
 #include "compression.h"
 #define NSYMBOLS 256
 
-extern int huffman_code[NSYMBOLS];
+struct bitwriter {
+    unsigned char buffer;
+    int bit_count;
+};
+
+extern unsigned int huffman_code[NSYMBOLS];
+extern unsigned int huffman_code_length[NSYMBOLS];
 
 // 何種類の文字が含まれているのかを数える
 static int count_symbol_variety(void);
-static int convert_binary(int n);
+
+// 初期化
+static void init_bitwriter(BitWriter *bw);
+
+// ビットを書き込む
+static void write_bit(BitWriter *bw, int bit, FILE* fp);
+
+// ビット列を書き込む
+static void write_bits(BitWriter* bw, unsigned int bits, int length, FILE* fp);
+
+// バッファに残ったビットを出力
+static void flush(BitWriter* bw, FILE* fp);
 
 static int count_symbol_variety(void) {
     int c = 0;
     for (int i = 0; i < NSYMBOLS; i++) {
-        if (huffman_code[i] != -1) {
+        if (huffman_code_length[i] > 0) {
             c += 1;
         }
     }
     return c;
 }
 
-static int convert_binary(int n) {
-    int binary = 0;
-    int remainder;
-    int i = 1;
+static void init_bitwriter(BitWriter *bw) {
+    bw->buffer = 0;
+    bw->bit_count = 0;
+}
 
-    while (n > 0) {
-        remainder = n % 2;
-        n = n / 2;
-        binary += remainder * i;
-        i *= 10;
+static void write_bit(BitWriter *bw, int bit, FILE* fp) {
+    bw->buffer = (bw->buffer << 1) | (bit & 1);
+    bw->bit_count++;
+
+    if (bw->bit_count == 8) {// 8bitに到達したらファイルに書き込む
+        fwrite(&(bw->buffer), sizeof(unsigned char), 1, fp);
+        bw->buffer = 0;
+        bw->bit_count = 0;
     }
-    return binary;
+}
+
+static void write_bits(BitWriter* bw, unsigned int bits, int length, FILE* fp) {
+    // bitsを2進数と見て、左から見ていく
+    for (int i = length - 1; i >= 0; i--) {
+        int bit = (bits >> i) & 1;
+        write_bit(bw, bit, fp);
+    }
+}
+
+static void flush(BitWriter* bw, FILE* fp) {
+    if (bw->bit_count > 0) {
+        bw->buffer <<= (8 - bw->bit_count);
+        fwrite(&(bw->buffer), sizeof(unsigned char), 1, fp);
+        bw->buffer = 0;
+        bw->bit_count = 0;
+    }
 }
 
 // 出力ファイルに圧縮
@@ -52,24 +88,33 @@ void compress(const char* inputfile, const char* outputfile) {
         exit(1);
     }
 
-    // 
-    int num = count_symbol_variety();
-    fprintf(fp2, "%d\n", num);
+    // 出力ファイルに書き込む
 
+    int num = count_symbol_variety();
+    fwrite(&num, sizeof(int), 1, fp2);// 文字数を書き込み
+
+    // 変換の対応を書き込む
     for (int i = 0; i < NSYMBOLS; i++) {
-        if (huffman_code[i] != -1) {
-            if (i != 10) {
-                fprintf(fp2, "%c %d\n", i, convert_binary(huffman_code[i]));
-            } else {
-                fprintf(fp2, "LF %d\n", convert_binary(huffman_code[i]));
-            }
+        if (huffman_code_length[i] > 0) {
+            fwrite(&i, sizeof(int), 1, fp2);
+            fwrite(&huffman_code_length[i], sizeof(unsigned int), 1, fp2); // コード長を書き込む
+            fwrite(&huffman_code[i], sizeof(unsigned int), 1, fp2); // コードを書き込む
         }
     }
+
+    BitWriter bw;
+    init_bitwriter(&bw);
     
-    char c;
-    while(fread(&c, sizeof(char), 1, fp1) != 0) {
-        fprintf(fp2, "%d", convert_binary(huffman_code[(int)c]));
+    // 変換後のコード列を書き込む
+    unsigned char c;
+    while(fread(&c, sizeof(unsigned char), 1, fp1) != 0) {
+        unsigned int code = huffman_code[c];
+        int length = huffman_code_length[c];
+        write_bits(&bw, code, length, fp2);
     }
+
+    flush(&bw, fp2);
+
     fclose(fp1);
     fclose(fp2);
 }

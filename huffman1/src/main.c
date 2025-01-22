@@ -13,6 +13,6 @@ int main(int argc, char **argv)
     Node *root = encode(argv[1]);
     traverse_tree(root, 0, "", 0);
     compress(argv[1], argv[2]);
-    
+    free_tree(root);
     return EXIT_SUCCESS;
 }
