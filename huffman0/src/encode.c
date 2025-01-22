@@ -130,7 +130,7 @@ static void assign_codes(Node *np, char* code, int depth) {
     if (np->left == NULL && np->right == NULL) {
         code[depth] = '\0';
         strcpy(np->huffman, code);
-        printf("Symbol: %c, Code: %s\n", np->symbol, code);
+        // printf("Symbol: %c, Code: %s\n", np->symbol, code);
         return;
     }
 
@@ -154,17 +154,31 @@ static void assign_codes(Node *np, char* code, int depth) {
 
 // Perform depth-first traversal of the tree
 // 深さ優先で木を走査する
-// 木を走査しながら、ハフマン符号の0, 1を割り当てる
-void traverse_tree(const int depth, const Node *np)
-{			  
+// 木の構造が見やすくなるように表示を工夫
+void traverse_tree(const Node* np, const int depth, const char *prefix, int is_left) {
     if (np == NULL) return;
 
-    printf("Depth: %d, Symbol: %c (%d), Count: %d, Huffman code: %s\n", depth, (np->symbol >= 32 && np->symbol <= 126) ? np->symbol: '?', np->symbol, np->count, np->huffman);
+    printf("%s", prefix);// インデントを表示
+    if (depth > 0) {
+        printf("%s── ", is_left ? "├": "└");// ├── (左のノード)または └── (右のノード)を表示
+    }
 
-    traverse_tree(depth + 1, np->left);
-    traverse_tree(depth + 1, np->right);
+    // ノードの情報を表示
+    if (np->symbol == -1) {
+        printf("[*] (count: %d)\n", np->count);
+    } else if (np->symbol == 10) {// 改行文字だったら、LFと表示
+        printf("[LF] (symbol: %d, count: %d, huffman code: %s)\n", np->symbol, np->count, np->huffman);
+    } else {
+        printf("[%c] (symbol: %d, count: %d, huffman code: %s)\n", np->symbol, np->symbol, np->count, np->huffman);
+    }
+
+    // 次の段のインデントを更新
+    char new_prefix[NSYMBOLS];
+    sprintf(new_prefix, "%s%s   ", prefix, is_left ? "│" : " ");
+
+    traverse_tree(np->left, depth + 1, new_prefix, 1);
+    traverse_tree(np->right, depth + 1, new_prefix, 0);
 }
-
 
 // この関数は外部 (main) で使用される (staticがついていない)
 Node *encode(const char *filename)

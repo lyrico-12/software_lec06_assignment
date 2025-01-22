@@ -10,7 +10,7 @@ int main(int argc, char **argv)
     }
     
     Node *root = encode(argv[1]);
-    traverse_tree(0,root);
+    traverse_tree(root, 0, "", 0);
     
     return EXIT_SUCCESS;
 }
