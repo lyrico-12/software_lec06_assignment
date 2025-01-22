@@ -15,7 +15,7 @@ extern unsigned int huffman_code[NSYMBOLS];
 extern unsigned int huffman_code_length[NSYMBOLS];
 
 // 何種類の文字が含まれているのかを数える
-static int count_symbol_variety(void);
+static unsigned char count_symbol_variety(void);
 
 // 初期化
 static void init_bitwriter(BitWriter *bw);
@@ -29,8 +29,8 @@ static void write_bits(BitWriter* bw, unsigned int bits, int length, FILE* fp);
 // バッファに残ったビットを出力
 static void flush(BitWriter* bw, FILE* fp);
 
-static int count_symbol_variety(void) {
-    int c = 0;
+static unsigned char count_symbol_variety(void) {
+    unsigned c = 0;
     for (int i = 0; i < NSYMBOLS; i++) {
         if (huffman_code_length[i] > 0) {
             c += 1;
@@ -90,13 +90,13 @@ void compress(const char* inputfile, const char* outputfile) {
 
     // 出力ファイルに書き込む
 
-    int num = count_symbol_variety();
-    fwrite(&num, sizeof(int), 1, fp2);// 文字数を書き込み
+    unsigned char num = count_symbol_variety();
+    fwrite(&num, sizeof(unsigned char), 1, fp2);// 文字数を書き込み
 
     // 変換の対応を書き込む
     for (int i = 0; i < NSYMBOLS; i++) {
         if (huffman_code_length[i] > 0) {
-            fwrite(&i, sizeof(int), 1, fp2);
+            fwrite(&i, sizeof(unsigned char), 1, fp2);
             fwrite(&huffman_code_length[i], sizeof(unsigned int), 1, fp2); // コード長を書き込む
             fwrite(&huffman_code[i], sizeof(unsigned int), 1, fp2); // コードを書き込む
         }
