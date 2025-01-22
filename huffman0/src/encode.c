@@ -3,16 +3,16 @@
 #include <limits.h>
 #include <string.h>
 #include "encode.h"
+#define NSYMBOLS 256
 
 // 構造体定義
 struct node{
     int symbol;// 元の文字のASCIIコード
+    char huffman[NSYMBOLS];// コード語
     int count;
     Node *left;
     Node *right;
 };
-
-#define NSYMBOLS 256
 
 // 各シンボルの出現回数
 static int symbol_count[NSYMBOLS];
@@ -35,7 +35,7 @@ static Node *pop_min(int *n, Node *nodep[]);
 // ハフマン木を構成する関数
 static Node *build_tree(void);
 
-static void assign_codes(const Node *np, char* code, int depth, char codes[NSYMBOLS][NSYMBOLS]);
+static void assign_codes(Node *np, char* code, int depth);
 
 // 以下 static関数の実装
 static void count_symbols(const char *filename)
@@ -62,10 +62,11 @@ static void reset_count(void)
     for (int i = 0 ; i < NSYMBOLS ; i++) symbol_count[i] = 0;
 }
 
+// nodeを作る時は、ハフマン符号はnull文字にしておく
 static Node *create_node(int symbol ,int count, Node *left, Node *right)
 {
     Node *ret = (Node *)malloc(sizeof(Node));
-    *ret = (Node){ .symbol = symbol, .count = count, .left = left, .right = right};
+    *ret = (Node){ .symbol = symbol, .huffman = {0}, .count = count, .left = left, .right = right};
     return ret;
 }
 
@@ -122,24 +123,24 @@ static Node *build_tree(void)
     return (n==0)?NULL:nodep[0];
 }
 
-static void assign_codes(const Node *np, char* code, int depth, char codes[NSYMBOLS][NSYMBOLS]) {
+static void assign_codes(Node *np, char* code, int depth) {
     if (np == NULL) return;
 
     // leaf nodeだったら、終了する
     if (np->left == NULL && np->right == NULL) {
         code[depth] = '\0';
-        strcpy(codes[np->symbol], code);
+        strcpy(np->huffman, code);
         printf("Symbol: %c, Code: %s\n", np->symbol, code);
         return;
     }
 
     // 左の枝に進む
     code[depth] = '0';
-    assign_codes(np->left, code, depth + 1, codes);
+    assign_codes(np->left, code, depth + 1);
 
     // 右の枝に進む
     code[depth] = '1';
-    assign_codes(np->right, code, depth + 1, codes);
+    assign_codes(np->right, code, depth + 1);
 }
 
 /*
@@ -158,7 +159,7 @@ void traverse_tree(const int depth, const Node *np)
 {			  
     if (np == NULL) return;
 
-    printf("Depth: %d, Symbol: %c (%d), Count: %d\n", depth, (np->symbol >= 32 && np->symbol <= 126) ? np->symbol: '?', np->symbol, np->count);
+    printf("Depth: %d, Symbol: %c (%d), Count: %d, Huffman code: %s\n", depth, (np->symbol >= 32 && np->symbol <= 126) ? np->symbol: '?', np->symbol, np->count, np->huffman);
 
     traverse_tree(depth + 1, np->left);
     traverse_tree(depth + 1, np->right);
@@ -176,9 +177,8 @@ Node *encode(const char *filename)
         fprintf(stderr,"A tree has not been constructed.\n");
     }
 
-    char codes[NSYMBOLS][NSYMBOLS] = {0};
     char code[NSYMBOLS];
-    assign_codes(root, code, 0, codes);
+    assign_codes(root, code, 0);
 
     return root;
 }
