@@ -8,7 +8,7 @@
 // 構造体定義
 struct node{
     int symbol;// 元の文字のASCIIコード
-    char huffman[NSYMBOLS];// コード語
+    int huffman;// ハフマン符号
     int count;
     Node *left;
     Node *right;
@@ -17,6 +17,9 @@ struct node{
 // 各シンボルの出現回数
 static int symbol_count[NSYMBOLS];
 
+// ハフマン符号を保存するグローバル変数
+int huffman_code[NSYMBOLS];
+
 // 以下このソースで有効なstatic関数のプロトタイプ宣言
 
 // ファイルを読み込み、static配列の値を更新する関数
@@ -24,6 +27,9 @@ static void count_symbols(const char *filename);
 
 // symbol_count をリセットする関数
 static void reset_count(void);
+
+// huffman_code をリセットする関数
+static void reset_huffman_code(void);
 
 // 与えられた引数でNode構造体を作成し、そのアドレスを返す関数
 static Node *create_node(int symbol, int count, Node *left, Node *right);
@@ -35,7 +41,9 @@ static Node *pop_min(int *n, Node *nodep[]);
 // ハフマン木を構成する関数
 static Node *build_tree(void);
 
-static void assign_codes(Node *np, char* code, int depth);
+static void assign_codes(Node *np, int code, int depth);
+
+static void print_binary(int n);
 
 // 以下 static関数の実装
 static void count_symbols(const char *filename)
@@ -47,11 +55,8 @@ static void count_symbols(const char *filename)
     }
 
     // 1Byteずつ読み込み、カウントする
-    /*
-      write a code for counting
-    */
     char c;   
-    while ((c = fgetc(fp)) != EOF) {
+    while (fread(&c, sizeof(char), 1, fp) != 0) {
         symbol_count[(int)c] += 1;
     }
 
@@ -62,11 +67,15 @@ static void reset_count(void)
     for (int i = 0 ; i < NSYMBOLS ; i++) symbol_count[i] = 0;
 }
 
-// nodeを作る時は、ハフマン符号はnull文字にしておく
+static void reset_huffman_code(void) {
+    for (int i = 0 ; i < NSYMBOLS ; i++) huffman_code[i] = -1;// まだ符号化されていない文字は-1を入れておく
+}
+
+// nodeを作る時は、ハフマン符号は０にしておく
 static Node *create_node(int symbol ,int count, Node *left, Node *right)
 {
     Node *ret = (Node *)malloc(sizeof(Node));
-    *ret = (Node){ .symbol = symbol, .huffman = {0}, .count = count, .left = left, .right = right};
+    *ret = (Node){ .symbol = symbol, .huffman = 0, .count = count, .left = left, .right = right};
     return ret;
 }
 
@@ -114,7 +123,7 @@ static Node *build_tree(void)
         // 選ばれた2つのノードを元に統合ノードを新規作成
         // 作成したノードはnodep にどうすればよいか?
 
-        Node *dnode = create_node(dummy, node1->count + node2->count, node1, node2);// 左右が反対なのはなぜ？
+        Node *dnode = create_node(dummy, node1->count + node2->count, node1, node2);
         nodep[n] = dnode;// 末尾に追加
         n++;// 配列の要素数をプラスする
     }
@@ -123,24 +132,32 @@ static Node *build_tree(void)
     return (n==0)?NULL:nodep[0];
 }
 
-static void assign_codes(Node *np, char* code, int depth) {
-    if (np == NULL) return;
-
+static void assign_codes(Node *np, int code, int depth) {
     // leaf nodeだったら、終了する
     if (np->left == NULL && np->right == NULL) {
-        code[depth] = '\0';
-        strcpy(np->huffman, code);
-        // printf("Symbol: %c, Code: %s\n", np->symbol, code);
+        huffman_code[np->symbol] = code;// huffman_code配列にコード語を追加
+        np->huffman = code;
         return;
     }
-
+    
+    unsigned int temp = code;
     // 左の枝に進む
-    code[depth] = '0';
+    code = temp * 2;
     assign_codes(np->left, code, depth + 1);
 
     // 右の枝に進む
-    code[depth] = '1';
+    code = temp * 2 + 1;
     assign_codes(np->right, code, depth + 1);
+}
+
+static void print_binary(int n) {
+    for (int i = 0; i < 8; i++) {
+        if (n & 1 << (7 - i)) {
+            printf("1");
+        } else {
+            printf("0");
+        }
+    }
 }
 
 /*
@@ -167,9 +184,13 @@ void traverse_tree(const Node* np, const int depth, const char *prefix, int is_l
     if (np->symbol == -1) {
         printf("[*] (count: %d)\n", np->count);
     } else if (np->symbol == 10) {// 改行文字だったら、LFと表示
-        printf("[LF] (symbol: %d, count: %d, huffman code: %s)\n", np->symbol, np->count, np->huffman);
+        printf("[LF] (symbol: %d, count: %d, huffman code: ", np->symbol, np->count);
+        print_binary(np->huffman);
+        printf(")\n");
     } else {
-        printf("[%c] (symbol: %d, count: %d, huffman code: %s)\n", np->symbol, np->symbol, np->count, np->huffman);
+        printf("[%c] (symbol: %d, count: %d, huffman code: ", np->symbol, np->symbol, np->count);
+        print_binary(np->huffman);
+        printf(")\n");
     }
 
     // 次の段のインデントを更新
@@ -184,6 +205,7 @@ void traverse_tree(const Node* np, const int depth, const char *prefix, int is_l
 Node *encode(const char *filename)
 {
     reset_count();
+    reset_huffman_code();
     count_symbols(filename);
     Node *root = build_tree();
     
@@ -191,8 +213,7 @@ Node *encode(const char *filename)
         fprintf(stderr,"A tree has not been constructed.\n");
     }
 
-    char code[NSYMBOLS];
-    assign_codes(root, code, 0);
+    assign_codes(root, 0, 0);
 
     return root;
 }
