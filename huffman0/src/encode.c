@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <string.h>
 #include "encode.h"
 
 // 構造体定義
 struct node{
     int symbol;// 元の文字のASCIIコード
-    int huffman_symbol;// ハフマン符号0か1
     int count;
     Node *left;
     Node *right;
@@ -14,6 +14,7 @@ struct node{
 
 #define NSYMBOLS 256
 
+// 各シンボルの出現回数
 static int symbol_count[NSYMBOLS];
 
 // 以下このソースで有効なstatic関数のプロトタイプ宣言
@@ -25,7 +26,7 @@ static void count_symbols(const char *filename);
 static void reset_count(void);
 
 // 与えられた引数でNode構造体を作成し、そのアドレスを返す関数
-static Node *create_node(int symbol, int huffman_symbol, int count, Node *left, Node *right);
+static Node *create_node(int symbol, int count, Node *left, Node *right);
 
 // Node構造体へのポインタが並んだ配列から、最小カウントを持つ構造体をポップしてくる関数
 // n は 配列の実効的な長さを格納する変数を指している（popするたびに更新される）
@@ -34,6 +35,7 @@ static Node *pop_min(int *n, Node *nodep[]);
 // ハフマン木を構成する関数
 static Node *build_tree(void);
 
+static void assign_codes(const Node *np, char* code, int depth, char codes[NSYMBOLS][NSYMBOLS]);
 
 // 以下 static関数の実装
 static void count_symbols(const char *filename)
@@ -60,10 +62,10 @@ static void reset_count(void)
     for (int i = 0 ; i < NSYMBOLS ; i++) symbol_count[i] = 0;
 }
 
-static Node *create_node(int symbol, int huffman_symbol ,int count, Node *left, Node *right)
+static Node *create_node(int symbol ,int count, Node *left, Node *right)
 {
     Node *ret = (Node *)malloc(sizeof(Node));
-    *ret = (Node){ .symbol = symbol, .huffman_symbol = huffman_symbol, .count = count, .left = left, .right = right};
+    *ret = (Node){ .symbol = symbol, .count = count, .left = left, .right = right};
     return ret;
 }
 
@@ -99,7 +101,7 @@ static Node *build_tree(void)
     for (int i = 0; i < NSYMBOLS; i++) {
         // カウントの存在しなかったシンボルには何もしない
         if (symbol_count[i] == 0) continue;
-        nodep[n++] = create_node(i, -1, symbol_count[i], NULL, NULL);
+        nodep[n++] = create_node(i, symbol_count[i], NULL, NULL);
     }
 
     const int dummy = -1; // ダミー用のsymbol を用意しておく
@@ -111,13 +113,33 @@ static Node *build_tree(void)
         // 選ばれた2つのノードを元に統合ノードを新規作成
         // 作成したノードはnodep にどうすればよいか?
 
-        Node *dnode = create_node(dummy, -1, node1->count + node2->count, node1, node2);// 左右が反対なのはなぜ？
+        Node *dnode = create_node(dummy, node1->count + node2->count, node1, node2);// 左右が反対なのはなぜ？
         nodep[n] = dnode;// 末尾に追加
         n++;// 配列の要素数をプラスする
     }
 
     // なぜ以下のコードで木を返したことになるか少し考えてみよう
     return (n==0)?NULL:nodep[0];
+}
+
+static void assign_codes(const Node *np, char* code, int depth, char codes[NSYMBOLS][NSYMBOLS]) {
+    if (np == NULL) return;
+
+    // leaf nodeだったら、終了する
+    if (np->left == NULL && np->right == NULL) {
+        code[depth] = '\0';
+        strcpy(codes[np->symbol], code);
+        printf("Symbol: %c, Code: %s\n", np->symbol, code);
+        return;
+    }
+
+    // 左の枝に進む
+    code[depth] = '0';
+    assign_codes(np->left, code, depth + 1, codes);
+
+    // 右の枝に進む
+    code[depth] = '1';
+    assign_codes(np->right, code, depth + 1, codes);
 }
 
 /*
@@ -131,18 +153,13 @@ static Node *build_tree(void)
 
 // Perform depth-first traversal of the tree
 // 深さ優先で木を走査する
-// 現状は何もしていない（再帰してたどっているだけ）
+// 木を走査しながら、ハフマン符号の0, 1を割り当てる
 void traverse_tree(const int depth, const Node *np)
 {			  
     if (np == NULL) return;
 
-    printf("Depth: %d, Symbol: %c (%d), huffman_symbol: %d, Count: %d\n", depth, (np->symbol >= 32 && np->symbol <= 126) ? np->symbol: '?', np->symbol, np->huffman_symbol, np->count);
-    if (np->left) {
-        np->left->huffman_symbol = 0;
-    }
-    if (np->right) {
-        np->right->huffman_symbol = 1;
-    }
+    printf("Depth: %d, Symbol: %c (%d), Count: %d\n", depth, (np->symbol >= 32 && np->symbol <= 126) ? np->symbol: '?', np->symbol, np->count);
+
     traverse_tree(depth + 1, np->left);
     traverse_tree(depth + 1, np->right);
 }
@@ -158,6 +175,10 @@ Node *encode(const char *filename)
     if (root == NULL){
         fprintf(stderr,"A tree has not been constructed.\n");
     }
+
+    char codes[NSYMBOLS][NSYMBOLS] = {0};
+    char code[NSYMBOLS];
+    assign_codes(root, code, 0, codes);
 
     return root;
 }
